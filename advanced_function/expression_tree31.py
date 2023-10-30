@@ -4,31 +4,14 @@ import math
 import numpy as np
 import random
 
-def safe_log(x):
-    if x <= 0:
-        return float('-inf') 
-    else:
-        return math.log(x)
-
-def safe_sin(x):
-    try:
-        return math.sin(x)
-    except:
-        return 0.0 
-    
-def safe_exp(x):
-    if x > 700:
-        return float('inf')
-    elif x < -700:
-        return 0.0
-    else:
-        return math.exp(x)
-
 class Node:
     def __init__(self,value,left = None, right = None):
         self.value = value
         self.left = left
         self.right = right
+    
+   
+        
 
 class Expression:
 
@@ -36,20 +19,22 @@ class Expression:
         self.xSet = np.array(xSet)
         self.ySet = np.array(ySet)
         self.functions = functions
+        self.onefun=['exp','log','sin','cos']
+        self.twofun=[t for t in functions if t not in self.onefun]
         self.terminals = terminals
-        self.constants= [t for t in terminals if t != 'x']
         self.list_terminals = []
         self.list_node=[]
-
+        self.constants= [t for t in terminals if t != 'x']
         self.root = Node(value=random.choice(functions))
         self.list_node.append(self.root)
-        self.depth = 1  
+        self.depth=0
+        self.max_depth=max_depth
 
         stack = deque()
         stack.append(self.root)
         while stack:
             node = stack.pop()
-            if node.value in functions:
+            if node.value in self.twofun:
                 if self.depth < max_depth:
                     node.left = Node(value=random.choice(functions+terminals))
                     node.right = Node(value=random.choice(functions+terminals))
@@ -66,35 +51,67 @@ class Expression:
                 node.left = None
                 node.right = None
                 self.list_terminals.append(node)
+            elif node.value in self.onefun:
+                node.right=None
+                if self.depth < max_depth:
+                    node.left = Node(value=random.choice(functions+terminals))
+                    stack.append(node.left)
+                    self.list_node.append(node.left)
+                    self.depth += 1
+                else: 
+                    node.left = Node(value=random.choice(terminals))
+                    self.depth += 1
 
         self.fitness = self.getfitness()
-    
-    def evaluate(self, node, x):
+
+
+    def evaluate(self, node,x):
         if node is None:
             return 0
-        left_val = self.evaluate(node.left, x)
-        right_val = self.evaluate(node.right, x)
-        if node.value == '-':
-            return left_val - right_val
-        elif node.value == '+':
-            return left_val + right_val
-        elif node.value == '*':
-            return left_val * right_val
-        elif node.value == '/':
+        left_val=self.evaluate(node.left, x)
+        right_val=self.evaluate(node.right, x)
+        if  node.value=='-':
+            return left_val-right_val
+        elif node.value=='+':
+            return left_val+right_val
+        elif node.value=='*':
+            return left_val*right_val
+        elif node.value=='/':
             if right_val == 0:
+                node.value=0
+                node.left=None
+                Node.right=None
                 return 0
-            return left_val / right_val
-        elif node.value == 'exp':
-            return safe_exp(left_val)
-        elif node.value == 'log':
-            return safe_log(left_val)
-        elif node.value == 'sin':
-            return safe_sin(left_val)
-        elif node.value == 'x':
+            return left_val/right_val
+        elif node.value=='exp':
+            if left_val>30:
+                return 1000000000
+            return math.exp(left_val)
+        elif node.value=='log':
+            if left_val<=0:
+                node.value=0
+                node.left=None
+                Node.right=None
+                return 0
+            return math.log(left_val)
+        elif node.value=='sin':
+            if left_val<-10000000 or left_val>10000000:
+                node.value=0
+                node.left=None
+                Node.right=None
+                return 0
+            return math.sin(left_val)
+        elif node.value=='cos':
+            if left_val<-10000000 or left_val>10000000:
+                node.value=0
+                node.left=None
+                Node.right=None
+                return 0
+            return math.cos(left_val)
+        elif node.value=='x':
             return x
-        else:
+        else: 
             return float(node.value)
-
     
     def __lt__(self, other):
         if self.fitness < other.fitness:
@@ -102,26 +119,37 @@ class Expression:
         else:
             return False
 
+
     def getfitness(self):
         yhat = np.array([self.evaluate(self.root,x) for x in self.xSet])
-        return np.mean((self.ySet-yhat)**2)*math.log(math.log(self.depth+2)+3)
+        return np.mean((yhat-self.ySet)**2)*math.log(self.depth+8)
     
-    def eval(self, xSet, ySet):
-        yhat = np.array([self.evaluate(self.root,x) for x in xSet])
-        return np.mean((ySet-yhat)**2)*math.log(math.log(self.depth+2)+3)
+
+    def exeval(self,xeSet,yeSet):
+        yhat = np.array([self.evaluate(self.root,x) for x in xeSet])
+        return np.mean((yeSet-yhat)**2)*math.log(self.depth+8)
     
     def update(self):
         self.fitness = self.getfitness()
+        self.fitness = self.getfitness()
         self.list_terminals =[]
+        self.list_node=[]
         stack = deque()
+        self.depth=0
         stack.append(self.root)
         while stack:
             node = stack.pop()
-            if node.value in self.functions:
+            self.list_node.append(node)
+            if node.value in self.twofun:
                 stack.append(node.right)
                 stack.append(node.left)
-            elif node.value in self.terminals:
+                self.depth+=1
+            elif node.value in self.onefun:
+                stack.append(node.left)
+                self.depth+=1
+            else :
                 self.list_terminals.append(node)
+        
 
     def mutate(self):
         child = copy.deepcopy(self)
@@ -130,11 +158,12 @@ class Expression:
         if random_node.value == 'x':
             random_node.value = random.choice(self.constants)
         else:
-            random_node.value = 'x'
+            random_node.value = random.choice(['x',random_node.value+1,random_node.value-1])
 
         child.update()
         return child
     
+
     def crossover(self, other):
         child1 = copy.deepcopy(self)
         child2 = copy.deepcopy(other)
@@ -148,19 +177,18 @@ class Expression:
 
         child1.update()
         child2.update()
-        
+
         return child1, child2
     
     def print_expression(self, node):
         if node is None:
             return ""
-        if node.value in self.functions:
+        if node.value in self.twofun:
             left = self.print_expression(node.left)
             right = self.print_expression(node.right)
             return f"({left} {node.value} {right})"
+        elif node.value in self.onefun:
+            left = self.print_expression(node.left)
+            return f"({node.value}({left}))"
         else:
             return node.value
-
-
-
-

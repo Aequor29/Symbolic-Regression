@@ -20,8 +20,8 @@ ySet = np.array(ySet)
 # Parameters
 terminals = ['x', 1, 2, 3]
 functions = ['+', '-', '*', '/']
-max_depth = 3
-population_size = 70
+max_depth = 5
+population_size = 100
 
 best_expression = genetic_programming(max_depth=max_depth, size=population_size, xSet=xSet, ySet=ySet, functions= functions, terminals= terminals)
 
@@ -29,7 +29,7 @@ print("Best Expression:", best_expression.print_expression(best_expression.root)
 print("Best Fitness:", best_expression.fitness)
 
 
-x_values = np.linspace(min(xSet), max(xSet), 400)
+x_values = np.linspace(min(xSet), max(xSet), 25000)
 y_values = [best_expression.evaluate(best_expression.root, x) for x in x_values]
 
 plt.scatter(xSet, ySet, c='blue', label='Dataset')
